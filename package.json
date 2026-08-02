@@ -1,6 +1,6 @@
 {
   "name": "my-service",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Microservice built on api-server-toolkit",
   "private": true,
   "license": "MIT",
