@@ -1,5 +1,8 @@
 # Scaffold — Microservice Template
 
+[![Version](https://img.shields.io/badge/version-v2.0.0-blue)](https://github.com/fwmakc/scaffold/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/fwmakc/scaffold/blob/master/LICENSE)
+
 > Minimal NestJS service template built on [api-server-toolkit](https://github.com/fwmakc/api-server-toolkit).
 > Clone, rename, add your domain logic, deploy.
 

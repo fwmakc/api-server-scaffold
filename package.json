@@ -4,6 +4,21 @@
   "description": "Microservice built on api-server-toolkit",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "github:fwmakc/scaffold"
+  },
+  "keywords": [
+    "nestjs",
+    "boilerplate",
+    "template",
+    "starter",
+    "microservice"
+  ],
+  "bugs": {
+    "url": "https://github.com/fwmakc/scaffold/issues"
+  },
+  "homepage": "https://github.com/fwmakc/scaffold#readme",
   "scripts": {
     "build": "nest build",
     "dev": "nest start --watch",
