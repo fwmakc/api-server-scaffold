@@ -46,7 +46,7 @@ npm run dev
 |------|---------|
 | `src/main.ts` | 9 lines — `bootstrap()` call |
 | `src/app.module.ts` | `HealthModule.forRoot()` + your feature modules |
-| `package.json` | `api-server-toolkit#v2.1.0`, jest, nest CLI |
+| `package.json` | `api-server-toolkit#v0.9.0`, jest, nest CLI |
 | `Dockerfile` | node:22-alpine, multi-stage, HEALTHCHECK |
 | `tsconfig.json` | `@src/*` path alias, incremental, skipLibCheck |
 | `.env.example` | Minimal config — DB, Swagger, Sentry |
