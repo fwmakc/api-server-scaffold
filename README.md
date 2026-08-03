@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/badge/version-v0.1.0-blue)](https://github.com/fwmakc/scaffold/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/fwmakc/scaffold/blob/master/LICENSE)
 
-> Minimal NestJS service template built on [api-server-toolkit](https://github.com/fwmakc/api-server-toolkit).
+> Reference implementation: 5-minute bootstrap — create a new microservice on the toolkit.
 > Clone, rename, add your domain logic, deploy.
 
 ## What This Is
@@ -25,6 +25,16 @@ bootstrap({
   cors: true,
 });
 ```
+
+## Pattern
+
+This repo demonstrates the **bootstrap pattern** in the toolkit stack:
+
+- **`main.ts` = 9 lines** — `bootstrap()` handles Sentry, helmet, ValidationPipe, Swagger, cookie-parser, graceful shutdown
+- **Everything wired** — HealthModule, CORS, Swagger UI, ReDoc, tsconfig paths
+- **No boilerplate** — `nest new` gives you empty project; scaffold gives you production-ready service
+
+Use this when you need: a new microservice that doesn't fit existing patterns.
 
 ## Quick Start
 
