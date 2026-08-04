@@ -89,6 +89,172 @@ export class ProductController {}
 
 Register in `app.module.ts`, restart — `GET /products` works.
 
+## Adding a Complete CRUD Module (5 minutes)
+
+Full pattern: Entity → DTO → Service → Controller → Module.
+
+### 1. Entity
+
+```typescript
+// src/products/products.entity.ts
+import { Entity } from 'typeorm';
+import { IdColumn, VarcharColumn, TextColumn, CommonColumn } from 'api-server-toolkit';
+
+@Entity('products')
+export class ProductEntity extends CommonColumn {
+  @IdColumn() id: number;
+  @VarcharColumn() name: string;
+  @TextColumn() description: string;
+}
+```
+
+### 2. DTO
+
+```typescript
+// src/products/products.dto.ts
+import { DtoColumn, CommonDto } from 'api-server-toolkit';
+
+export class ProductDto extends CommonDto {
+  @DtoColumn() name: string;
+  @DtoColumn() description: string;
+}
+```
+
+### 3. Service
+
+```typescript
+// src/products/products.service.ts
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CommonService } from 'api-server-toolkit';
+import { ProductDto } from './products.dto';
+import { ProductEntity } from './products.entity';
+
+@Injectable()
+export class ProductService extends CommonService<ProductDto, ProductEntity> {
+  constructor(
+    @InjectRepository(ProductEntity)
+    protected readonly repository: Repository<ProductEntity>,
+  ) {
+    super();
+  }
+}
+```
+
+### 4. Controller
+
+```typescript
+// src/products/products.controller.ts
+import { EntityController } from 'api-server-toolkit';
+import { ProductDto } from './products.dto';
+import { ProductEntity } from './products.entity';
+import { ProductService } from './products.service';
+
+@EntityController({
+  name: 'products',
+  dto: ProductDto,
+  entity: ProductEntity,
+  operations: {
+    read: 'public',
+    create: 'account',
+    update: 'owner',
+    delete: 'superuser',
+  },
+})
+export class ProductController {
+  readonly service: ProductService;
+}
+```
+
+### 5. Module
+
+```typescript
+// src/products/products.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ProductEntity } from './products.entity';
+import { ProductService } from './products.service';
+import { ProductController } from './products.controller';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([ProductEntity])],
+  providers: [ProductService],
+  controllers: [ProductController],
+})
+export class ProductsModule {}
+```
+
+### 6. Register
+
+```typescript
+// src/app.module.ts
+import { ProductsModule } from './products/products.module';
+
+@Module({
+  imports: [
+    HealthModule.forRoot('my-service'),
+    TypeOrmModule.forRootAsync({ ... }),
+    ProductsModule,  // ← add here
+  ],
+})
+export class AppModule {}
+```
+
+Restart — you now have:
+- `GET /products` — public read
+- `POST /products/create` — authenticated users
+- `PATCH /products/update/:id` — owner only
+- `DELETE /products/remove/:id` — superuser only
+- `GET /products/swagger` — interactive docs
+
+### Adding to Docker Compose
+
+```yaml
+# gateway-server/docker-compose.yml
+my-service:
+  build:
+    context: ..
+    dockerfile: my-service/Dockerfile
+  environment:
+    - NODE_ENV=production
+    - SERVICE_NAME=my-service
+    - PORT=3006
+    - DB_TYPE=postgres
+    - DB_HOST=pgbouncer
+    - DB_PORT=5432
+    - DB_NAME=my_service
+    - DB_USER=${DB_USER:-root}
+    - DB_PASSWORD=${DB_PASSWORD:-1234}
+    - INTERNAL_API_KEY=${INTERNAL_API_KEY:-changeme}
+  depends_on:
+    pgbouncer:
+      condition: service_healthy
+  networks:
+    - frontend
+    - backend
+  restart: unless-stopped
+```
+
+Add a database in `init-databases.sh`:
+```bash
+CREATE DATABASE my_service;
+```
+
+Add nginx routing in `nginx.conf`:
+```nginx
+upstream my_service_backend {
+    zone my_service_backend 64k;
+    least_conn;
+    server my-service:3006 resolve max_fails=3 fail_timeout=30s;
+}
+
+location /products {
+    proxy_pass http://my_service_backend;
+    include /etc/nginx/conf.d/proxy.conf;
+}
+```
+
 ## AI-Friendly Documentation
 
 This template is designed for AI-assisted development.
