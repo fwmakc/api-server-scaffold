@@ -1,5 +1,5 @@
 {
-  "name": "my-service",
+  "name": "api-server-scaffold",
   "version": "0.1.0",
   "description": "Microservice built on api-server-toolkit",
   "private": true,

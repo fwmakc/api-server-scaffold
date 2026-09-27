@@ -1,7 +1,7 @@
-# Scaffold — Microservice Template
+# API Server Scaffold — Microservice Template
 
-[![Version](https://img.shields.io/badge/version-v0.1.0-blue)](https://github.com/fwmakc/scaffold/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/fwmakc/scaffold/blob/master/LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.1.0-blue)](https://github.com/fwmakc/api-server-scaffold/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/fwmakc/api-server-scaffold/blob/master/LICENSE)
 
 > Reference implementation: 5-minute bootstrap — create a new microservice on the toolkit.
 > Clone, rename, add your domain logic, deploy.
@@ -13,24 +13,41 @@ A **working scaffold** — not a demo, not a toy. Everything is wired up:
 graceful shutdown. You add entities and controllers — the boring infrastructure
 is already done.
 
-`main.ts` is 9 lines:
+`main.ts` is 25 lines — every middleware is opt-in, explicit and readable:
 
 ```typescript
+import { NestFactory } from "@nestjs/core";
+import { NestExpressApplication } from "@nestjs/platform-express";
 import { bootstrap } from "api-server-toolkit/bootstrap";
+import {
+  Sentry, Helmet, Cors, CookieParser, ValidationPipe, Log, Prefix, Swagger,
+} from "api-server-toolkit/bootstrap/setup";
 import { AppModule } from "@src/app.module";
 
-bootstrap({
-  module: AppModule,
-  serviceName: "my-service",
-  cors: true,
-});
+async function main() {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Middleware is opt-in — add Passport.setup(app) when you need JWT auth
+  Sentry.setup(app);
+  Helmet.setup(app);
+  Cors.setup(app, true);
+  CookieParser.setup(app);
+  ValidationPipe.setup(app);
+  Log.setup(app);
+  Prefix.setup(app);
+  Swagger.setup(app);
+
+  await bootstrap(app, { port: 3000 });
+}
+
+main();
 ```
 
 ## Pattern
 
 This repo demonstrates the **bootstrap pattern** in the toolkit stack:
 
-- **`main.ts` = 9 lines** — `bootstrap()` handles Sentry, helmet, ValidationPipe, Swagger, cookie-parser, graceful shutdown
+- **`main.ts` is explicit** — `bootstrap()` handles listen + graceful shutdown, named `.setup(app)` utilities handle middleware
 - **Everything wired** — HealthModule, CORS, Swagger UI, ReDoc, tsconfig paths
 - **No boilerplate** — `nest new` gives you empty project; scaffold gives you production-ready service
 
@@ -39,8 +56,10 @@ Use this when you need: a new microservice that doesn't fit existing patterns.
 ## Quick Start
 
 ```bash
-git clone https://github.com/fwmakc/scaffold.git my-service
+git clone https://github.com/fwmakc/api-server-scaffold.git my-service
 cd my-service
+# rename the package
+npm pkg set name=my-service
 npm install
 cp .env.example .env
 npm run dev
@@ -54,9 +73,9 @@ npm run dev
 
 | File | Purpose |
 |------|---------|
-| `src/main.ts` | 9 lines — `bootstrap()` call |
+| `src/main.ts` | Explicit middleware setup + `bootstrap()` |
 | `src/app.module.ts` | `HealthModule.forRoot()` + your feature modules |
-| `package.json` | `api-server-toolkit#v0.13.1`, jest, nest CLI |
+| `package.json` | `api-server-toolkit#v0.16.0`, jest, nest CLI |
 | `Dockerfile` | node:22-alpine, multi-stage, HEALTHCHECK |
 | `tsconfig.json` | `@src/*` path alias, incremental, skipLibCheck |
 | `.env.example` | Minimal config — DB, Swagger, Sentry |
@@ -77,17 +96,27 @@ export class ProductEntity extends CommonColumn {
 
 ```typescript
 // src/products/products.controller.ts
+import { Controller } from '@nestjs/common';
 import { EntityController } from 'api-server-toolkit';
+import { ProductEntity } from './products.entity';
 
-@EntityController({
+// Access model (AccessRule): operation = rules array (OR), default deny.
+// who: 'public' = anonymous, 'authenticated' = any logged-in user, real roles otherwise.
+@Controller('products')
+export class ProductController extends EntityController({
   name: 'products',
   entity: ProductEntity,
-  operations: { create: 'public', read: 'public', update: 'public', delete: 'public' },
-})
-export class ProductController {}
+  operations: {
+    read: [{ who: ['public'] }],          // anonymous can read
+    create: [{ who: ['authenticated'] }], // logged-in can create
+    delete: [{ who: ['superuser'] }],     // superuser only
+  },
+})<any, ProductEntity, any> {
+  constructor(readonly service: any) { super(); }
+}
 ```
 
-Register in `app.module.ts`, restart — `GET /products` works.
+Register in `app.module.ts`, restart — `GET /products/find` works.
 
 ## Adding a Complete CRUD Module (5 minutes)
 
@@ -146,26 +175,51 @@ export class ProductService extends CommonService<ProductDto, ProductEntity> {
 
 ```typescript
 // src/products/products.controller.ts
+import { Controller } from '@nestjs/common';
 import { EntityController } from 'api-server-toolkit';
 import { ProductDto } from './products.dto';
 import { ProductEntity } from './products.entity';
 import { ProductService } from './products.service';
 
-@EntityController({
+// The service adds @Controller itself; EntityController is used in extends style.
+@Controller('products')
+export class ProductController extends EntityController({
   name: 'products',
   dto: ProductDto,
   entity: ProductEntity,
   operations: {
-    read: 'public',
-    create: 'account',
-    update: 'owner',
-    delete: 'superuser',
+    // Rows outside the scope return 404, rule not matched → 403.
+    read: [
+      { who: ['public'], filter: { isPublished: true } }, // anonymous: published only
+      { who: ['authenticated'] },                          // logged-in: everything
+    ],
+    create: [{ who: ['authenticated'] }],
+    update: [{ who: ['authenticated'] }],
+    delete: [{ who: ['superuser'] }],
   },
-})
-export class ProductController {
-  readonly service: ProductService;
+  // Field rules: response — strip from server responses, request — strip from incoming payload.
+  fields: {
+    internalNotes: { response: [{ who: ['superuser'] }] },
+  },
+})<ProductDto, ProductEntity, ProductService> {
+  constructor(readonly service: ProductService) {
+    super();
+  }
 }
 ```
+
+**Owner scope** (optional): if the entity has an `account` relation, you can
+restrict rows to their owner — `scope: { owner: 'account.id' }` filters
+reads/updates to own rows and stamps `account.id` on create (client value is
+ignored):
+
+```typescript
+create: [{ who: ['authenticated'], scope: { owner: 'account.id' } }],
+update: [{ who: ['authenticated'], scope: { owner: 'account.id' } }, { who: ['superuser'] }],
+```
+
+A role entry with `tenant: 'all'` (from auth-server `roleEntries`) widens any
+scope. Dot-paths work for nested owners too: `scope: { owner: 'author.id' }`.
 
 ### 5. Module
 
@@ -202,11 +256,12 @@ export class AppModule {}
 ```
 
 Restart — you now have:
-- `GET /products` — public read
+- `GET /products/find`, `/products/find/:id`, `/products/count` — public read (published only for anonymous)
 - `POST /products/create` — authenticated users
-- `PATCH /products/update/:id` — owner only
+- `PATCH /products/update/:id` — authenticated users
 - `DELETE /products/remove/:id` — superuser only
-- `GET /products/swagger` — interactive docs
+- `internalNotes` is stripped from responses for everyone except superuser
+- `GET /swagger` — interactive docs
 
 ### Adding to Docker Compose
 
@@ -319,6 +374,7 @@ Already have an API or event system? You can adopt individual services:
 ## Versioning
 
 All services in the fwmakc stack share the same **major version**. Same major = guaranteed compatibility.
+(Currently all services are in 0.x — pre-1.0 development.)
 
 | Level | Scope | Example |
 |-------|-------|---------|
@@ -357,12 +413,12 @@ When a service makes a breaking change (e.g., toolkit 2.x → 3.0.0):
 
 | Service | Version |
 |---------|---------|
-| [api-server-toolkit](https://github.com/fwmakc/api-server-toolkit) | v2.1.0 |
-| [event-server](https://github.com/fwmakc/event-server) | v2.0.0 |
-| [auth-server](https://github.com/fwmakc/auth-server) | v2.0.0 |
-| [message-server](https://github.com/fwmakc/message-server) | v2.0.0 |
-| [file-server](https://github.com/fwmakc/file-server) | v2.0.0 |
-| [chat-server](https://github.com/fwmakc/chat-server) | v2.0.0 |
-| [api-server](https://github.com/fwmakc/api-server) | v2.0.0 |
-| [gateway-server](https://github.com/fwmakc/gateway-server) | v2.0.0 |
-| [scaffold](https://github.com/fwmakc/scaffold) | v2.0.0 |
+| [api-server-toolkit](https://github.com/fwmakc/api-server-toolkit) | v0.16.0 |
+| [event-server](https://github.com/fwmakc/event-server) | v0.5.1 |
+| [auth-server](https://github.com/fwmakc/auth-server) | v0.6.0 |
+| [message-server](https://github.com/fwmakc/message-server) | v0.4.0 |
+| [file-server](https://github.com/fwmakc/file-server) | v0.4.0 |
+| [chat-server](https://github.com/fwmakc/chat-server) | v0.1.0 |
+| [api-server](https://github.com/fwmakc/api-server) | v0.6.0 |
+| [gateway-server](https://github.com/fwmakc/gateway-server) | — (infra) |
+| [api-server-scaffold](https://github.com/fwmakc/api-server-scaffold) | v0.1.0 |
