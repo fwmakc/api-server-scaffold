@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          path: api-server-scaffold
+          path: my-service
 
       # Dockerfile copies the toolkit from a sibling directory
       - uses: actions/checkout@v4
@@ -50,5 +50,5 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: api-server-scaffold/Dockerfile
+          file: my-service/Dockerfile
           push: false
