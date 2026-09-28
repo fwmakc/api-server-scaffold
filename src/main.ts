@@ -19,7 +19,7 @@ async function main() {
   // Middleware is opt-in — add Passport.setup(app) when you need JWT auth
   Sentry.setup(app);
   Helmet.setup(app);
-  Cors.setup(app, true);
+  Cors.setup(app);
   CookieParser.setup(app);
   ValidationPipe.setup(app);
   Log.setup(app);
